@@ -228,13 +228,19 @@ std::vector<CSPrimitives*> ContinuousStructure::GetPrimitivesByType(CSPrimitives
 
 std::vector<CSPrimitives*>  ContinuousStructure::GetPrimitivesByBoundBox(const double* boundbox, bool sorted, CSProperties::PropertyType type)
 {
+	return GetPrimitivesByBoundBox(boundbox, GetAllPrimitives(sorted, type));
+}
+
+std::vector<CSPrimitives*> ContinuousStructure::GetPrimitivesByBoundBox(const double* boundbox, const std::vector<CSPrimitives*>& primitives)
+{
 	std::vector<CSPrimitives*> out_list;
-	std::vector<CSPrimitives*> prims =this->GetAllPrimitives(sorted, type);
-	for (size_t j=0;j<prims.size();++j)
+	for (CSPrimitives* primitive : primitives)
 	{
 		// add primitive to list of IsInside reports 0 or 1 (unknown or true)
-		if (prims.at(j)->IsInsideBox(boundbox)>=0)
-			out_list.push_back(prims.at(j));
+		if (primitive->IsInsideBox(boundbox)>=0)
+		{
+			out_list.push_back(primitive);
+		}
 	}
 	return out_list;
 }

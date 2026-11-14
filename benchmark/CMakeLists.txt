@@ -1,0 +1,3 @@
+add_executable(primitive_queries primitive_queries.cpp)
+target_include_directories(primitive_queries PRIVATE ${CSXCAD_SOURCE_DIR}/src)
+target_link_libraries(primitive_queries CSXCAD)

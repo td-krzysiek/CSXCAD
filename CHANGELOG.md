@@ -16,6 +16,9 @@ there are unreleased changes. It becomes the next release entry.
 
 ### Added
 
+- C++: `GetPrimitivesByBoundBox()` can filter a caller-owned primitive list,
+  allowing repeated queries to reuse a list from `GetAllPrimitives()` without
+  collecting and sorting the geometry again.
 - `CSPropDiscMaterial::GetPolyDataModel()` returns the discrete-material
   surface as plain point and quad arrays, in structure coordinates or in the
   mesh coordinates of the data file, and as numpy arrays in Python.

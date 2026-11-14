@@ -9,6 +9,7 @@ set(TESTS
   test_csobject
   test_csrectgrid
   test_cstransform
+  test_primitive_queries
 )
 
 foreach(test ${TESTS})
@@ -19,3 +20,6 @@ foreach(test ${TESTS})
   target_link_libraries(${test} CSXCAD)
   add_test(NAME ${test} COMMAND ${test})
 endforeach()
+
+find_package(Threads REQUIRED)
+target_link_libraries(test_primitive_queries Threads::Threads)

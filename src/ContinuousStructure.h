@@ -146,6 +146,17 @@ public:
 	//! Get a primitives array inside a bounding box and with a certian property type (default is any)
 	std::vector<CSPrimitives*>  GetPrimitivesByBoundBox(const double* boundbox, bool sorted=false, CSProperties::PropertyType type=CSProperties::ANY);
 
+	//! Filter an existing primitive list by a bounding box, preserving its order.
+	/*!
+	Reuse GetAllPrimitives(sorted,type) across queries to avoid collecting and
+	sorting the same geometry repeatedly. The list borrows its primitives; keep
+	them alive and rebuild the list after changing membership, property types or
+	priorities. Update the geometry before querying changed coordinates.
+	Unknown bounds remain candidates, just as in the property-type overload.
+	No list is retained by this structure and the supplied list is not modified.
+	 */
+	std::vector<CSPrimitives*> GetPrimitivesByBoundBox(const double* boundbox, const std::vector<CSPrimitives*>& primitives);
+
 	//! Get the internal index of the property.
 	int GetIndex(CSProperties* prop);
 

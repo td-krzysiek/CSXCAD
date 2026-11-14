@@ -126,6 +126,11 @@ if (CSXCAD_BUILD_TESTS)
   ADD_SUBDIRECTORY( tests )
 endif()
 
+option(CSXCAD_BUILD_BENCHMARKS "Build the optional C++ lookup benchmark" OFF)
+if (CSXCAD_BUILD_BENCHMARKS)
+  ADD_SUBDIRECTORY( benchmark )
+endif()
+
 INSTALL(DIRECTORY matlab DESTINATION share/CSXCAD)
 
 #TODO tarball, debug, release, doxygen
