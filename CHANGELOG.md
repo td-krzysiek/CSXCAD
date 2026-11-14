@@ -16,8 +16,8 @@ there are unreleased changes. It becomes the next release entry.
 
 ### Added
 
-- C++: `BuildSpatialIndex()` prepares priority-ordered geometry buckets for
-  repeated bounding-box queries. The non-owning snapshot supports configurable
+- C++: `CSPrimitiveIndex(structure, config)` prepares priority-ordered geometry
+  buckets for repeated bounding-box queries. The non-owning snapshot supports configurable
   X/Y/Z bins, bounded storage and concurrent read-only queries; rebuild it after
   changing the geometry. Existing lookup APIs are unchanged.
 - `CSPropDiscMaterial::GetPolyDataModel()` returns the discrete-material

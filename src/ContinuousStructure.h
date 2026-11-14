@@ -36,7 +36,6 @@
 #include "ParameterObjects.h"
 #include "CSUseful.h"
 #include "CSObject.h"
-#include "CSPrimitiveIndex.h"
 
 class TiXmlNode;
 
@@ -146,9 +145,6 @@ public:
 
 	//! Get a primitives array inside a bounding box and with a certian property type (default is any)
 	std::vector<CSPrimitives*>  GetPrimitivesByBoundBox(const double* boundbox, bool sorted=false, CSProperties::PropertyType type=CSProperties::ANY);
-
-	//! Build a non-owning spatial snapshot after Update(); keep geometry fixed during queries.
-	CSPrimitiveIndex BuildSpatialIndex(const CSPrimitiveIndex::Config& config);
 
 	//! Get the internal index of the property.
 	int GetIndex(CSProperties* prop);

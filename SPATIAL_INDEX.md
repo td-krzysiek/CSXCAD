@@ -1,5 +1,8 @@
 # Spatial primitive index (C++ setup API)
 
+Include `CSPrimitiveIndex.h` and construct it from `ContinuousStructure` and its
+configuration. No factory method or friendship is required.
+
 For many bounding-box queries against a fixed geometry, build one index rather
 than repeatedly collecting and sorting the structure's primitives:
 
@@ -9,7 +12,7 @@ CSPrimitiveIndex::Config config;
 config.bounds = {{xmin, xmax, ymin, ymax, zmin, zmax}};
 config.bins = {{16, 16, 1}};
 config.type = CSProperties::MATERIAL;
-auto index = csx.BuildSpatialIndex(config);
+CSPrimitiveIndex index(csx, config);
 
 std::vector<CSPrimitives*> candidates; // one output buffer per query thread
 index.Query(queryBounds, candidates);

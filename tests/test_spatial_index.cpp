@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Krzysztof Rosinski
 
 #include "ContinuousStructure.h"
+#include "CSPrimitiveIndex.h"
 #include "CSPrimBox.h"
 #include "CSPrimCylinder.h"
 #include "CSPropMaterial.h"
@@ -124,7 +125,7 @@ void CheckGeometry(CoordinateSystem coordinates)
 			config.bounds = {{0, 4, 0, 3, 0, 3}};
 			config.bins = bins;
 			config.type = mask;
-			auto index = csx.BuildSpatialIndex(config);
+			CSPrimitiveIndex index(csx, config);
 			Require(index.GetBucketCount() == bins[0]*bins[1]*bins[2], "wrong bucket count");
 			std::vector<std::vector<CSPrimitives*>> expected;
 			for (const auto& query : queries)
@@ -170,7 +171,7 @@ void CheckGeometry(CoordinateSystem coordinates)
 	csx.DeletePrimitive(shifted);
 	Box(csx, material, 200, {{0, 1, 0, 1, 0, 1}});
 	Require(csx.Update().empty(), "changed fixture must update");
-	const auto rebuilt = csx.BuildSpatialIndex(CSPrimitiveIndex::Config{});
+	const CSPrimitiveIndex rebuilt(csx, CSPrimitiveIndex::Config{});
 	Require(rebuilt.Query(queries[0].data()) ==
 		csx.GetPrimitivesByBoundBox(queries[0].data(), true), "rebuild is stale");
 }
@@ -184,30 +185,30 @@ void CheckErrors()
 	Require(csx.Update().empty(), "error fixture must update");
 	CSPrimitiveIndex::Config config;
 	config.bins[0] = 0;
-	Throws<std::invalid_argument>([&]() {csx.BuildSpatialIndex(config);});
+	Throws<std::invalid_argument>([&]() {CSPrimitiveIndex invalid(csx, config);});
 	config = {};
 	config.bounds[0] = std::numeric_limits<double>::quiet_NaN();
-	Throws<std::invalid_argument>([&]() {csx.BuildSpatialIndex(config);});
+	Throws<std::invalid_argument>([&]() {CSPrimitiveIndex invalid(csx, config);});
 	config = {};
 	config.maxBuckets = 1;
-	Throws<std::length_error>([&]() {csx.BuildSpatialIndex(config);});
+	Throws<std::length_error>([&]() {CSPrimitiveIndex invalid(csx, config);});
 	config = {};
 	config.maxReferences = 1;
-	Throws<std::length_error>([&]() {csx.BuildSpatialIndex(config);});
+	Throws<std::length_error>([&]() {CSPrimitiveIndex invalid(csx, config);});
 	config = {};
 	config.bounds[0] = 1e16;
 	config.bounds[1] = std::nextafter(1e16, std::numeric_limits<double>::infinity());
-	Throws<std::invalid_argument>([&]() {csx.BuildSpatialIndex(config);});
+	Throws<std::invalid_argument>([&]() {CSPrimitiveIndex invalid(csx, config);});
 	config = {};
 	config.bins = {{std::numeric_limits<unsigned int>::max(), 2, 2}};
-	Throws<std::length_error>([&]() {csx.BuildSpatialIndex(config);});
+	Throws<std::length_error>([&]() {CSPrimitiveIndex invalid(csx, config);});
 	config = {};
-	auto index = csx.BuildSpatialIndex(config);
+	CSPrimitiveIndex index(csx, config);
 	Throws<std::invalid_argument>([&]() {index.Query(nullptr);});
 	double invalid[6] = {0, 1, 0, 1, 0, std::numeric_limits<double>::infinity()};
 	Throws<std::invalid_argument>([&]() {index.Query(invalid);});
 	ContinuousStructure empty;
-	const auto emptyIndex = empty.BuildSpatialIndex(config);
+	const CSPrimitiveIndex emptyIndex(empty, config);
 	Require(emptyIndex.Query(config.bounds.data()).empty(), "empty index must stay empty");
 }
 }

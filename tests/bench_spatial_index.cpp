@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Krzysztof Rosinski
 
 #include "ContinuousStructure.h"
+#include "CSPrimitiveIndex.h"
 #include "CSPrimBox.h"
 #include "CSPropMaterial.h"
 
@@ -36,7 +37,7 @@ int main(int argc, char** argv)
 	CSPrimitiveIndex::Config config;
 	config.bounds = {{0, 32, 0, 32, 0, 1}};
 	config.bins = {{16, 16, 1}};
-	auto index = indexed ? std::make_unique<CSPrimitiveIndex>(csx.BuildSpatialIndex(config)) : nullptr;
+	auto index = indexed ? std::make_unique<CSPrimitiveIndex>(csx, config) : nullptr;
 	const auto built = Clock::now();
 	std::size_t checksum = 0;
 	for (int i=0; i<200000; ++i)

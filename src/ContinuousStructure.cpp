@@ -239,11 +239,6 @@ std::vector<CSPrimitives*>  ContinuousStructure::GetPrimitivesByBoundBox(const d
 	return out_list;
 }
 
-CSPrimitiveIndex ContinuousStructure::BuildSpatialIndex(const CSPrimitiveIndex::Config& config)
-{
-	return CSPrimitiveIndex(GetAllPrimitives(true, config.type), config);
-}
-
 bool ContinuousStructure::InsertEdges2Grid(int nu)
 {
 	if (nu<0) return false;

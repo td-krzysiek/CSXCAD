@@ -3,15 +3,15 @@
 
 #include "CSPrimitiveIndex.h"
 #include "CSPrimitives.h"
+#include "ContinuousStructure.h"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
-#include <utility>
 
-CSPrimitiveIndex::CSPrimitiveIndex(std::vector<CSPrimitives*> primitives, const Config& config)
-	: m_Config(config), m_Primitives(std::move(primitives))
+CSPrimitiveIndex::CSPrimitiveIndex(ContinuousStructure& structure, const Config& config)
+	: m_Config(config), m_Primitives(structure.GetAllPrimitives(true, config.type))
 {
 	std::size_t buckets = 1;
 	for (unsigned int axis=0; axis<3; ++axis)

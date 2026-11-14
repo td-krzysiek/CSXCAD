@@ -16,7 +16,7 @@ class ContinuousStructure;
 
 //! Immutable spatial lookup for a fixed, updated geometry (non-owning).
 /*!
-Build through ContinuousStructure::BuildSpatialIndex(). Keep the structure and
+Construct from ContinuousStructure after Update(). Keep the structure and
 its primitives alive and unchanged until the index is destroyed. Rebuild after
 any geometry, parameter, membership, coordinate-system or priority change.
 Queries retain the original priority/tie order and conservative IsInsideBox()
@@ -34,6 +34,9 @@ public:
 		std::size_t maxReferences = 8388608;
 	};
 
+	//! Collect and priority-sort the requested figures from a fixed, updated structure.
+	CSPrimitiveIndex(ContinuousStructure& structure, const Config& config);
+
 	CSPrimitiveIndex(CSPrimitiveIndex&&) noexcept = default;
 	CSPrimitiveIndex& operator=(CSPrimitiveIndex&&) noexcept = default;
 	CSPrimitiveIndex(const CSPrimitiveIndex&) = delete;
@@ -48,9 +51,7 @@ public:
 	std::size_t GetPrimitiveCount() const {return m_Primitives.size();}
 
 private:
-	friend class ContinuousStructure;
 	using Rank = std::uint32_t;
-	CSPrimitiveIndex(std::vector<CSPrimitives*> primitives, const Config& config);
 	std::size_t Offset(unsigned int x, unsigned int y, unsigned int z) const;
 	void Filter(const double* bounds, const std::vector<Rank>& ranks,
 		std::vector<CSPrimitives*>& result) const;
