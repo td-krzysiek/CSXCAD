@@ -16,6 +16,9 @@ there are unreleased changes. It becomes the next release entry.
 
 ### Added
 
+- C++: `CSPrimitiveIndex::PreparedGrid` precomputes exact candidate lists for
+  specified query ranges. Identical lists share storage; subsequent integer
+  lookups borrow immutable vectors without filtering or allocation.
 - C++: conservative Cartesian polygon bounds let the experimental spatial index
   cull distant `Polygon`/`LinPoly` figures. Optional prepared tile candidates can
   be borrowed by reference; legacy bounds APIs and exact containment are unchanged.

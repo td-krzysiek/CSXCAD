@@ -11,6 +11,8 @@
 #include <cstdint>
 #include <vector>
 
+#define CSXCAD_HAS_PREPARED_PRIMITIVE_GRID 1
+
 class CSPrimitives;
 class ContinuousStructure;
 
@@ -25,6 +27,9 @@ Exact point containment remains GetPropertyByCoordPriority()'s job.
 class CSXCAD_EXPORT CSPrimitiveIndex
 {
 public:
+	class PreparedGrid;
+	using QueryRanges = std::array<std::vector<std::array<double, 2>>, 3>;
+
 	struct Config
 	{
 		std::array<double, 6> bounds{{0, 1, 0, 1, 0, 1}};
@@ -77,5 +82,30 @@ private:
 	std::vector<std::vector<Rank>> m_Buckets;
 	std::vector<Rank> m_Global;
 	std::vector<std::vector<CSPrimitives*>> m_CandidateBuckets;
+	std::size_t m_References = 0;
+};
+
+//! Exact candidate lists prepared once for a Cartesian product of query ranges.
+/*!
+Identical priority-ordered lists share one immutable vector. Integer lookup
+does no geometry query, merge, filtering or allocation. The source index need
+not survive construction; its geometry must remain alive and unchanged.
+ */
+class CSXCAD_EXPORT CSPrimitiveIndex::PreparedGrid
+{
+public:
+	PreparedGrid(const CSPrimitiveIndex& index, const QueryRanges& ranges,
+		std::size_t maxQueries = 8388608, std::size_t maxReferences = 8388608);
+	const std::vector<CSPrimitives*>& GetCandidates(std::size_t x,
+		std::size_t y, std::size_t z) const;
+	std::size_t GetQueryCount() const {return m_QueryLists.size();}
+	std::size_t GetListCount() const {return m_Lists.size();}
+	std::size_t GetReferenceCount() const {return m_References;}
+	std::size_t GetMappingBytes() const {return m_QueryLists.size() * sizeof(std::uint32_t);}
+
+private:
+	std::array<std::size_t, 3> m_Counts{};
+	std::vector<std::uint32_t> m_QueryLists;
+	std::vector<std::vector<CSPrimitives*>> m_Lists;
 	std::size_t m_References = 0;
 };

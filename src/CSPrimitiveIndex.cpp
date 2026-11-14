@@ -10,6 +10,7 @@
 #include <iterator>
 #include <limits>
 #include <stdexcept>
+#include <unordered_map>
 
 CSPrimitiveIndex::CSPrimitiveIndex(ContinuousStructure& structure, const Config& config)
 	: m_Config(config), m_Primitives(structure.GetAllPrimitives(true, config.type))
@@ -305,4 +306,81 @@ void CSPrimitiveIndex::Query(const double* bounds, std::vector<CSPrimitives*>& r
 			std::push_heap(heads.begin(), heads.end(), later);
 		}
 	}
+}
+
+CSPrimitiveIndex::PreparedGrid::PreparedGrid(const CSPrimitiveIndex& index,
+	const QueryRanges& ranges, std::size_t maxQueries, std::size_t maxReferences)
+{
+	std::size_t count = 1;
+	for (int axis = 0; axis < 3; ++axis)
+	{
+		m_Counts[axis] = ranges[axis].size();
+		if (m_Counts[axis] == 0 || count > maxQueries / m_Counts[axis])
+		{
+			throw std::length_error("Prepared query grid is empty or exceeds its query limit");
+		}
+		count *= m_Counts[axis];
+		for (const auto& range : ranges[axis])
+		{
+			if (!std::isfinite(range[0]) || !std::isfinite(range[1]))
+			{
+				throw std::invalid_argument("Prepared query ranges must be finite");
+			}
+		}
+	}
+	m_QueryLists.reserve(count);
+	// Only construction owns the hash table. Readers use compact integer IDs.
+	std::unordered_multimap<std::size_t, std::uint32_t> listsByHash;
+	std::vector<CSPrimitives*> candidates;
+	for (const auto& z : ranges[2])
+	{
+		for (const auto& y : ranges[1])
+		{
+			for (const auto& x : ranges[0])
+			{
+				const double bounds[6] = {x[0], x[1], y[0], y[1], z[0], z[1]};
+				index.Query(bounds, candidates);
+				std::size_t hash = candidates.size();
+				for (auto* primitive : candidates)
+				{
+					hash ^= std::hash<CSPrimitives*>{}(primitive) + std::size_t(0x9e3779b9) +
+						(hash << 6) + (hash >> 2);
+				}
+				const auto matches = listsByHash.equal_range(hash);
+				auto match = matches.first;
+				while (match != matches.second && m_Lists[match->second] != candidates)
+				{
+					++match;
+				}
+				std::uint32_t id;
+				if (match != matches.second)
+				{
+					id = match->second;
+				}
+				else
+				{
+					if (m_Lists.size() >= std::numeric_limits<std::uint32_t>::max() ||
+						candidates.size() > maxReferences - m_References)
+					{
+						throw std::length_error("Prepared query unique-list limit exceeded");
+					}
+					id = static_cast<std::uint32_t>(m_Lists.size());
+					m_Lists.push_back(candidates);
+					m_References += candidates.size();
+					listsByHash.emplace(hash, id);
+				}
+				m_QueryLists.push_back(id);
+			}
+		}
+	}
+}
+
+const std::vector<CSPrimitives*>& CSPrimitiveIndex::PreparedGrid::GetCandidates(
+	std::size_t x, std::size_t y, std::size_t z) const
+{
+	if (x >= m_Counts[0] || y >= m_Counts[1] || z >= m_Counts[2])
+	{
+		throw std::out_of_range("Prepared query coordinate is outside its grid");
+	}
+	return m_Lists[m_QueryLists[(z * m_Counts[1] + y) * m_Counts[0] + x]];
 }

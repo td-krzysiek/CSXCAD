@@ -1,5 +1,37 @@
 # Spatial primitive index (C++ setup API)
 
+## Prepared exact queries
+
+When the query ranges are known before repeated use, construct a
+`CSPrimitiveIndex::PreparedGrid` once:
+
+```cpp
+CSPrimitiveIndex::QueryRanges ranges;
+ranges[0] = {{{0, 1}}, {{1, 2}}};
+ranges[1] = {{{0, 1}}, {{1, 2}}};
+ranges[2] = {{{zmin, zmax}}};
+CSPrimitiveIndex::PreparedGrid prepared(index, ranges);
+const auto& figures = prepared.GetCandidates(xQuery, yQuery, 0);
+```
+
+Construct `index` as shown below before this example. The ranges specify the
+Cartesian product of query boxes; they may overlap or be reversed. Construction
+uses the exact filtered index queries and interns identical ordered pointer
+vectors. Subsequent integer lookup only reads a list ID and returns its vector
+by const reference: no heap, geometry filtering, sorting, copying or allocation.
+All readers share the immutable table. The original index may be destroyed
+after preparation, but its referenced geometry must remain alive and fixed.
+
+`GetQueryCount`, `GetListCount`, `GetReferenceCount` and `GetMappingBytes`
+report logical queries, unique lists, stored primitive pointers and the
+32-bit-ID mapping size. Query/reference limits are per prepared grid and
+default to 8,388,608 each; they are count limits, not a total RSS cap.
+Hash collisions are resolved by full ordered-list equality during construction.
+Point containment/material evaluation still belongs to the caller. A different
+query family requires a new prepared grid or the general `Query` API.
+
+## General bounding-box queries
+
 Include `CSPrimitiveIndex.h` and construct it from `ContinuousStructure` and its
 configuration. No factory method or friendship is required.
 

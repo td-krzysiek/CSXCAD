@@ -15,6 +15,7 @@
 #include <cmath>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <random>
 #include <stdexcept>
 #include <thread>
@@ -361,6 +362,74 @@ void CheckPolygonBounds()
 	polygons[0]->SetCoordInputType(CYLINDRICAL, false);
 	Require(!polygons[0]->GetConservativeBoundBox(bounds), "non-Cartesian polygon bounds accepted");
 }
+
+void CheckPreparedGrid()
+{
+	ContinuousStructure csx;
+	auto* material = new CSPropMaterial(csx.GetParameterSet());
+	csx.AddProperty(material);
+	Box(csx, material, 2, {{0, 1, 0, 1, 0, 1}});
+	Box(csx, material, 4, {{.5, 2, .5, 2, .5, 2}});
+	Require(csx.Update().empty(), "prepared fixture must update");
+	CSPrimitiveIndex::Config config;
+	config.bounds = {{-1, 3, -1, 3, -1, 3}};
+	config.bins = {{4, 4, 4}};
+	CSPrimitiveIndex index(csx, config);
+	CSPrimitiveIndex::QueryRanges ranges;
+	for (auto& axis : ranges)
+	{
+		axis = {{{-.25, .25}}, {{.75, 1.25}}, {{2, 1}}, {{-1, 3}}, {{-.25, .25}}};
+	}
+	std::unique_ptr<CSPrimitiveIndex::PreparedGrid> grid;
+	{
+		CSPrimitiveIndex temporary(csx, config);
+		grid = std::make_unique<CSPrimitiveIndex::PreparedGrid>(temporary, ranges);
+	}
+	Require(grid->GetQueryCount() == 125 && grid->GetMappingBytes() == 500,
+		"prepared grid dimensions or mapping bytes differ");
+	Require(grid->GetListCount() < grid->GetQueryCount(), "prepared lists were not shared");
+	for (std::size_t z = 0; z < 5; ++z)
+	{
+		for (std::size_t y = 0; y < 5; ++y)
+		{
+			for (std::size_t x = 0; x < 5; ++x)
+			{
+				const double bounds[6] = {ranges[0][x][0], ranges[0][x][1],
+					ranges[1][y][0], ranges[1][y][1], ranges[2][z][0], ranges[2][z][1]};
+				Require(grid->GetCandidates(x, y, z) == index.Query(bounds),
+					"prepared ordered candidates differ from exact query");
+			}
+		}
+	}
+	Require(&grid->GetCandidates(0, 0, 0) == &grid->GetCandidates(4, 4, 4),
+		"identical query lists do not share a vector");
+	std::atomic<bool> same{true};
+	std::vector<std::thread> readers;
+	for (int i = 0; i < 4; ++i)
+	{
+		readers.emplace_back([&]() {
+			for (int j = 0; j < 1000; ++j)
+			{
+				if (&grid->GetCandidates(0, 0, 0) != &grid->GetCandidates(4, 4, 4))
+				{
+					same = false;
+				}
+			}
+		});
+	}
+	for (auto& reader : readers)
+	{
+		reader.join();
+	}
+	Require(same, "parallel prepared readers differ");
+	Throws<std::out_of_range>([&]() {grid->GetCandidates(5, 0, 0);});
+	Throws<std::length_error>([&]() {CSPrimitiveIndex::PreparedGrid tooMany(index, ranges, 124);});
+	Throws<std::length_error>([&]() {CSPrimitiveIndex::PreparedGrid tooMany(index, ranges, 125, 0);});
+	ranges[0][0][0] = std::numeric_limits<double>::infinity();
+	Throws<std::invalid_argument>([&]() {CSPrimitiveIndex::PreparedGrid invalid(index, ranges);});
+	ranges[0].clear();
+	Throws<std::length_error>([&]() {CSPrimitiveIndex::PreparedGrid empty(index, ranges);});
+}
 }
 
 int main()
@@ -371,6 +440,7 @@ int main()
 		CheckGeometry(CYLINDRICAL);
 		CheckErrors();
 		CheckPolygonBounds();
+		CheckPreparedGrid();
 	}
 	catch (const std::exception& error)
 	{
