@@ -16,6 +16,10 @@ there are unreleased changes. It becomes the next release entry.
 
 ### Added
 
+- C++: conservative Cartesian polygon bounds let the experimental spatial index
+  cull distant `Polygon`/`LinPoly` figures. Optional prepared tile candidates can
+  be borrowed by reference; legacy bounds APIs and exact containment are unchanged.
+  Rebuild dependent native code for the added virtual method.
 - C++: `CSPrimitiveIndex(structure, config)` prepares priority-ordered geometry
   buckets for repeated bounding-box queries. The non-owning snapshot supports configurable
   X/Y/Z bins, bounded storage and concurrent read-only queries; rebuild it after

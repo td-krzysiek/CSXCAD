@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 #include <limits>
 #include <stdexcept>
 
@@ -47,6 +48,12 @@ CSPrimitiveIndex::CSPrimitiveIndex(ContinuousStructure& structure, const Config&
 		throw std::length_error("Spatial index primitive limit exceeded");
 	}
 	m_Buckets.resize(buckets);
+	m_Bounds.resize(m_Primitives.size());
+	const double tolerance = structure.GetDrawingTolerance();
+	if (!std::isfinite(tolerance) || tolerance < 0)
+	{
+		throw std::invalid_argument("Spatial index needs a finite nonnegative drawing tolerance");
+	}
 	auto append = [&](std::vector<Rank>& list, Rank rank) {
 		if (m_References >= config.maxReferences)
 		{
@@ -61,12 +68,25 @@ CSPrimitiveIndex::CSPrimitiveIndex(ContinuousStructure& structure, const Config&
 	{
 		auto* primitive = m_Primitives[i];
 		const Rank rank = static_cast<Rank>(i);
+		auto& bounds = m_Bounds[i];
+		bounds.known = primitive->GetConservativeBoundBox(bounds.values.data());
+		if (bounds.known)
+		{
+			for (int axis = 0; axis < 3; ++axis)
+			{
+				double& low = bounds.values[2 * axis];
+				double& high = bounds.values[2 * axis + 1];
+				low = std::nextafter(low - tolerance, -std::numeric_limits<double>::infinity());
+				high = std::nextafter(high + tolerance, std::numeric_limits<double>::infinity());
+				bounds.known = bounds.known && std::isfinite(low) && std::isfinite(high);
+			}
+		}
 		const int containment = primitive->IsInsideBox(config.bounds.data());
-		if (containment < 0)
+		if (!Intersects(rank, config.bounds.data()))
 		{
 			continue;
 		}
-		if (containment == 0)
+		if (containment == 0 && !bounds.known)
 		{
 			append(m_Global, rank);
 			continue;
@@ -79,12 +99,36 @@ CSPrimitiveIndex::CSPrimitiveIndex(ContinuousStructure& structure, const Config&
 				{
 					const double box[6] = {m_Edges[0][x], m_Edges[0][x+1],
 						m_Edges[1][y], m_Edges[1][y+1], m_Edges[2][z], m_Edges[2][z+1]};
-					if (primitive->IsInsideBox(box) >= 0)
+					if (Intersects(rank, box))
 					{
 						append(m_Buckets[Offset(x, y, z)], rank);
 					}
 				}
 			}
+		}
+	}
+	if (config.prepareCandidateViews)
+	{
+		m_CandidateBuckets.resize(m_Buckets.size());
+		for (std::size_t i = 0; i < m_Buckets.size(); ++i)
+		{
+			const auto& local = m_Buckets[i];
+			const std::size_t count = local.size() + m_Global.size();
+			if (count > config.maxReferences - m_References)
+			{
+				throw std::length_error("Spatial index prepared-candidate limit exceeded");
+			}
+			std::vector<Rank> merged;
+			merged.reserve(count);
+			std::merge(local.begin(), local.end(), m_Global.begin(), m_Global.end(),
+				std::back_inserter(merged));
+			auto& candidates = m_CandidateBuckets[i];
+			candidates.reserve(count);
+			for (Rank rank : merged)
+			{
+				candidates.push_back(m_Primitives[rank]);
+			}
+			m_References += count;
 		}
 	}
 }
@@ -94,12 +138,31 @@ std::size_t CSPrimitiveIndex::Offset(unsigned int x, unsigned int y, unsigned in
 	return (static_cast<std::size_t>(z)*m_Config.bins[1]+y)*m_Config.bins[0]+x;
 }
 
+bool CSPrimitiveIndex::Intersects(Rank rank, const double* bounds) const
+{
+	const auto& box = m_Bounds[rank];
+	if (!box.known)
+	{
+		return m_Primitives[rank]->IsInsideBox(bounds) >= 0;
+	}
+	for (int axis = 0; axis < 3; ++axis)
+	{
+		const double low = std::min(bounds[2 * axis], bounds[2 * axis + 1]);
+		const double high = std::max(bounds[2 * axis], bounds[2 * axis + 1]);
+		if (high < box.values[2 * axis] || low > box.values[2 * axis + 1])
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 void CSPrimitiveIndex::Filter(const double* bounds, const std::vector<Rank>& ranks,
 	std::vector<CSPrimitives*>& result) const
 {
 	for (Rank rank : ranks)
 	{
-		if (m_Primitives[rank]->IsInsideBox(bounds) >= 0)
+		if (Intersects(rank, bounds))
 		{
 			result.push_back(m_Primitives[rank]);
 		}
@@ -113,13 +176,15 @@ std::vector<CSPrimitives*> CSPrimitiveIndex::Query(const double* bounds) const
 	return result;
 }
 
-void CSPrimitiveIndex::Query(const double* bounds, std::vector<CSPrimitives*>& result) const
+bool CSPrimitiveIndex::BucketRange(const double* bounds, std::array<unsigned int, 3>& first,
+	std::array<unsigned int, 3>& last) const
 {
 	if (!bounds)
 	{
 		throw std::invalid_argument("Spatial index needs a query box");
 	}
-	std::array<unsigned int, 3> first{}, last{};
+	first.fill(0);
+	last.fill(0);
 	bool outside = false;
 	for (unsigned int axis=0; axis<3; ++axis)
 	{
@@ -141,6 +206,25 @@ void CSPrimitiveIndex::Query(const double* bounds, std::vector<CSPrimitives*>& r
 		first[axis] = static_cast<unsigned int>(begin == 0 ? 0 : begin-1);
 		last[axis] = static_cast<unsigned int>(std::min<std::size_t>(end-1, m_Config.bins[axis]-1));
 	}
+	return !outside;
+}
+
+const std::vector<CSPrimitives*>& CSPrimitiveIndex::GetCandidates(const double* bounds,
+	std::vector<CSPrimitives*>& scratch) const
+{
+	std::array<unsigned int, 3> first{}, last{};
+	if (BucketRange(bounds, first, last) && first == last && !m_CandidateBuckets.empty())
+	{
+		return m_CandidateBuckets[Offset(first[0], first[1], first[2])];
+	}
+	Query(bounds, scratch);
+	return scratch;
+}
+
+void CSPrimitiveIndex::Query(const double* bounds, std::vector<CSPrimitives*>& result) const
+{
+	std::array<unsigned int, 3> first{}, last{};
+	const bool outside = !BucketRange(bounds, first, last);
 	result.clear();
 	std::size_t touched = 1;
 	for (unsigned int axis=0; axis<3; ++axis)
@@ -151,20 +235,28 @@ void CSPrimitiveIndex::Query(const double* bounds, std::vector<CSPrimitives*>& r
 	{
 		// Unbounded and wide queries reuse the sorted snapshot, not CSXCAD's
 		// collection/sort path. This also covers geometry outside the index.
-		for (auto* primitive : m_Primitives)
+		for (std::size_t rank = 0; rank < m_Primitives.size(); ++rank)
 		{
-			if (primitive->IsInsideBox(bounds) >= 0)
+			if (Intersects(static_cast<Rank>(rank), bounds))
 			{
-				result.push_back(primitive);
+				result.push_back(m_Primitives[rank]);
 			}
 		}
+		return;
+	}
+	if (touched == 1 && m_Global.empty())
+	{
+		Filter(bounds, m_Buckets[Offset(first[0], first[1], first[2])], result);
 		return;
 	}
 	struct Head
 	{
 		const std::vector<Rank>* list;
 		std::size_t position;
-		Rank Value() const {return (*list)[position];}
+		Rank Value() const
+		{
+			return (*list)[position];
+		}
 	};
 	std::vector<Head> heads;
 	heads.reserve(touched+1);
@@ -202,7 +294,7 @@ void CSPrimitiveIndex::Query(const double* bounds, std::vector<CSPrimitives*>& r
 		Head head = heads.back();
 		heads.pop_back();
 		const Rank rank = head.Value();
-		if (rank != previous && m_Primitives[rank]->IsInsideBox(bounds) >= 0)
+		if (rank != previous && Intersects(rank, bounds))
 		{
 			result.push_back(m_Primitives[rank]);
 		}

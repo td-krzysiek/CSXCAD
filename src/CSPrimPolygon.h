@@ -60,6 +60,7 @@ public:
 	ParameterScalar* GetElevationPS() {return &Elevation;}
 
 	virtual bool GetBoundBox(double dBoundBox[6], bool PreserveOrientation=false);
+	bool GetConservativeBoundBox(double bounds[6]) const override;
 	virtual bool IsInside(const double* Coord, double tol=0);
 
 	virtual bool Update(std::string *ErrStr=NULL);

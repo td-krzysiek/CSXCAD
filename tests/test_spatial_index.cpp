@@ -5,9 +5,12 @@
 #include "CSPrimitiveIndex.h"
 #include "CSPrimBox.h"
 #include "CSPrimCylinder.h"
+#include "CSPrimLinPoly.h"
+#include "CSPrimRotPoly.h"
 #include "CSPropMaterial.h"
 #include "CSPropMetal.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <iostream>
@@ -200,6 +203,11 @@ void CheckErrors()
 	config.bounds[1] = std::nextafter(1e16, std::numeric_limits<double>::infinity());
 	Throws<std::invalid_argument>([&]() {CSPrimitiveIndex invalid(csx, config);});
 	config = {};
+	config.prepareCandidateViews = true;
+	config.bins = {{1, 1, 1}};
+	config.maxReferences = 1;
+	Throws<std::length_error>([&]() {CSPrimitiveIndex invalid(csx, config);});
+	config = {};
 	config.bins = {{std::numeric_limits<unsigned int>::max(), 2, 2}};
 	Throws<std::length_error>([&]() {CSPrimitiveIndex invalid(csx, config);});
 	config = {};
@@ -211,6 +219,148 @@ void CheckErrors()
 	const CSPrimitiveIndex emptyIndex(empty, config);
 	Require(emptyIndex.Query(config.bounds.data()).empty(), "empty index must stay empty");
 }
+
+void PolygonCoords(CSPrimPolygon& polygon, double x, double y)
+{
+	// Concave contour: the missing upper-right corner must stay outside.
+	for (const auto& point : {std::array<double, 2>{{0, 0}}, {{1, 0}}, {{1, .4}},
+		{{.4, .4}}, {{.4, 1}}, {{0, 1}}})
+	{
+		polygon.AddCoord(x + point[0]);
+		polygon.AddCoord(y + point[1]);
+	}
+}
+
+void CheckPolygonBounds()
+{
+	ContinuousStructure csx;
+	csx.SetDrawingTolerance(.01);
+	auto* metal = new CSPropMetal(csx.GetParameterSet());
+	auto* dielectric = new CSPropMaterial(csx.GetParameterSet());
+	csx.AddProperty(metal);
+	csx.AddProperty(dielectric);
+	Box(csx, dielectric, -1, {{-1, 17, -1, 17, -1, 2}});
+	std::vector<CSPrimLinPoly*> polygons;
+	for (int i = 0; i < 64; ++i)
+	{
+		auto* polygon = new CSPrimLinPoly(csx.GetParameterSet(), metal);
+		polygon->SetNormDir(2);
+		polygon->SetElevation(.25);
+		polygon->SetLength(.1);
+		polygon->SetPriority(5);
+		PolygonCoords(*polygon, 2 * (i % 8), 2 * (i / 8));
+		polygons.push_back(polygon);
+	}
+	// Higher-priority dielectric and tied-priority metal exercise winner ordering.
+	Box(csx, dielectric, 10, {{0, .2, 0, .2, .2, .4}});
+	Box(csx, metal, 5, {{0, .3, 0, .3, .2, .4}});
+	auto* shifted = new CSPrimLinPoly(csx.GetParameterSet(), metal);
+	PolygonCoords(*shifted, 0, 0);
+	shifted->SetNormDir(2);
+	shifted->SetLength(.2);
+	const double move[3] = {5, 5, .8};
+	shifted->GetTransform()->Translate(move);
+	Require(csx.Update().empty(), "polygon fixture must update");
+	double bounds[6];
+	Require(!polygons[0]->GetBoundBox(bounds), "legacy polygon bounds contract changed");
+	Require(polygons[0]->IsInsideBox(bounds) == 0, "legacy unknown-box result changed");
+	Require(polygons[0]->GetConservativeBoundBox(bounds), "polygon lacks conservative bounds");
+	Require(!shifted->GetConservativeBoundBox(bounds), "transformed polygon must remain conservative");
+	CSPrimitiveIndex::Config config;
+	config.bounds = {{-1, 17, -1, 17, -1, 2}};
+	config.prepareCandidateViews = true;
+	const auto all = csx.GetAllPrimitives(true);
+	for (const auto bins : {std::array<unsigned int, 3>{{8, 8, 1}}, {{8, 8, 4}}})
+	{
+		config.bins = bins;
+		CSPrimitiveIndex index(csx, config);
+		Require(index.GetGlobalCount() == 1, "untransformed polygons escaped the partition");
+		const double query[6] = {.1, .2, .1, .2, .26, .30};
+		Require(index.Query(query).size() < 8, "polygon candidates were not reduced");
+		std::vector<CSPrimitives*> scratch;
+		const auto& prepared = index.GetCandidates(query, scratch);
+		Require(&prepared != &scratch, "single-tile candidate list was not borrowed");
+		Require(&prepared == &index.GetCandidates(query, scratch), "prepared view address changed");
+		const double crossing[6] = {1.2, 1.3, .1, .2, .26, .30};
+		const auto& merged = index.GetCandidates(crossing, scratch);
+		Require(&merged == &scratch, "crossing query did not use caller scratch");
+		Require(merged == index.Query(crossing), "crossing candidate list changed");
+		std::mt19937 random(37);
+		std::uniform_real_distribution<double> position(-.5, 15.5);
+		std::vector<std::array<double, 3>> points;
+		for (int i = 0; i < 2000; ++i)
+		{
+			points.push_back({{position(random), position(random), .245 + (i % 12) * .01}});
+		}
+		for (const auto point : {std::array<double, 3>{{-.005, .1, .3}}, {{.1, -.005, .3}},
+			{{.1, .1, .245}}, {{.1, .1, .355}}, {{.405, .405, .3}}, {{.8, .8, .3}},
+			{{5.1, 5.1, .9}}})
+		{
+			points.push_back(point);
+		}
+		for (const auto& point : points)
+		{
+			// A point query specifically checks the drawing-tolerance expansion.
+			const double box[6] = {point[0], point[0], point[1], point[1], point[2], point[2]};
+			const auto found = index.Query(box);
+			for (auto* polygon : polygons)
+			{
+				if (polygon->IsInside(point.data(), csx.GetDrawingTolerance()))
+				{
+					Require(std::find(found.begin(), found.end(), polygon) != found.end(),
+						"index dropped a true polygon hit, including tolerance");
+				}
+			}
+			// Pad the query for legacy boxes, whose old box contract is unchanged.
+			const double padded[6] = {point[0] - .02, point[0] + .02, point[1] - .02,
+				point[1] + .02, point[2] - .02, point[2] + .02};
+			Require(csx.GetPropertyByCoordPriority(point.data(), index.Query(padded), false) ==
+				csx.GetPropertyByCoordPriority(point.data(), all, false), "polygon material winner differs");
+			Require(csx.GetPropertyByCoordPriority(point.data(), index.GetCandidates(padded, scratch), false) ==
+				csx.GetPropertyByCoordPriority(point.data(), all, false), "prepared-view material winner differs");
+		}
+		std::atomic<bool> parallelSame{true};
+		std::vector<std::thread> workers;
+		for (int thread = 0; thread < 4; ++thread)
+		{
+			workers.emplace_back([&]() {
+				std::vector<CSPrimitives*> local;
+				for (const auto& point : points)
+				{
+					const double padded[6] = {point[0] - .02, point[0] + .02, point[1] - .02,
+						point[1] + .02, point[2] - .02, point[2] + .02};
+					if (csx.GetPropertyByCoordPriority(point.data(), index.GetCandidates(padded, local), false) !=
+						csx.GetPropertyByCoordPriority(point.data(), all, false))
+					{
+						parallelSame = false;
+					}
+				}
+			});
+		}
+		for (auto& worker : workers)
+		{
+			worker.join();
+		}
+		Require(parallelSame, "parallel borrowed/scratch candidate queries differ");
+	}
+	// Normal-axis orientation and signed extrusion are part of the bounds contract.
+	for (int axis = 0; axis < 3; ++axis)
+	{
+		for (double length : {-.5, .5})
+		{
+			polygons[0]->SetNormDir(axis);
+			polygons[0]->SetLength(length);
+			Require(csx.Update().empty(), "signed polygon fixture must update");
+			Require(polygons[0]->GetConservativeBoundBox(bounds), "signed extrusion bounds missing");
+			Require(bounds[2 * axis] == std::min(.25, .25 + length) &&
+				bounds[2 * axis + 1] == std::max(.25, .25 + length), "wrong extrusion interval");
+		}
+	}
+	CSPrimRotPoly rotated(csx.GetParameterSet(), nullptr);
+	Require(!rotated.GetConservativeBoundBox(bounds), "RotPoly must not use planar bounds");
+	polygons[0]->SetCoordInputType(CYLINDRICAL, false);
+	Require(!polygons[0]->GetConservativeBoundBox(bounds), "non-Cartesian polygon bounds accepted");
+}
 }
 
 int main()
@@ -220,6 +370,7 @@ int main()
 		CheckGeometry(CARTESIAN);
 		CheckGeometry(CYLINDRICAL);
 		CheckErrors();
+		CheckPolygonBounds();
 	}
 	catch (const std::exception& error)
 	{
