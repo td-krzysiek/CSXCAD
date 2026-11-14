@@ -1,6 +1,7 @@
 
 set( PUB_HEADERS
   ContinuousStructure.h
+  CSPrimitiveIndex.h
   CSPrimitives.h
   CSProperties.h
   CSRectGrid.h
@@ -46,6 +47,7 @@ set( PUB_HEADERS
 
 set(SOURCES
   ContinuousStructure.cpp
+  CSPrimitiveIndex.cpp
   CSPrimitives.cpp
   CSProperties.cpp
   CSRectGrid.cpp

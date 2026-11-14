@@ -6,6 +6,8 @@ Licensed under the [LGPLv3](https://www.gnu.org/licenses/lgpl-3.0.html).
 
 **Documentation:** [docs.openems.de](https://docs.openems.de)
 
+For repeated C++ geometry queries, see the optional [spatial index](SPATIAL_INDEX.md).
+
 ---
 
 ## Dependencies
