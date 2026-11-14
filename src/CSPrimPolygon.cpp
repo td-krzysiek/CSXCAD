@@ -19,6 +19,7 @@
 #include <iostream>
 #include <limits>
 #include <algorithm>
+#include <cmath>
 #include "tinyxml.h"
 #include "stdint.h"
 
@@ -152,6 +153,30 @@ bool CSPrimPolygon::GetBoundBox(double dBoundBox[6], bool PreserveOrientation)
 			++m_Dimension;
 	}
 	return accurate;
+}
+
+bool CSPrimPolygon::GetConservativeBoundBox(double bounds[6]) const
+{
+	// The cached bounds also include a LinPoly's signed extrusion after Update().
+	// RotPoly and transformed/non-Cartesian inputs need their own bounds contract.
+	if (!bounds || (Type != POLYGON && Type != LINPOLY) || m_Dimension < 0 ||
+		vCoords.size() < 6 || m_MeshType != CARTESIAN || HasTransform() ||
+		(m_PrimCoordSystem != UNDEFINED_CS && m_PrimCoordSystem != CARTESIAN))
+	{
+		return false;
+	}
+	for (int axis = 0; axis < 3; ++axis)
+	{
+		const double low = m_BoundBox[2 * axis];
+		const double high = m_BoundBox[2 * axis + 1];
+		if (!std::isfinite(low) || !std::isfinite(high))
+		{
+			return false;
+		}
+		bounds[2 * axis] = std::min(low, high);
+		bounds[2 * axis + 1] = std::max(low, high);
+	}
+	return true;
 }
 
 bool CSPrimPolygon::IsInside(const double* inCoord, double tol)

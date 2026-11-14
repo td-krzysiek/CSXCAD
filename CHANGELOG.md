@@ -16,6 +16,17 @@ there are unreleased changes. It becomes the next release entry.
 
 ### Added
 
+- C++: `CSPrimitiveIndex::PreparedGrid` precomputes exact candidate lists for
+  specified query ranges. Identical lists share storage; subsequent integer
+  lookups borrow immutable vectors without filtering or allocation.
+- C++: conservative Cartesian polygon bounds let the experimental spatial index
+  cull distant `Polygon`/`LinPoly` figures. Optional prepared tile candidates can
+  be borrowed by reference; legacy bounds APIs and exact containment are unchanged.
+  Rebuild dependent native code for the added virtual method.
+- C++: `CSPrimitiveIndex(structure, config)` prepares priority-ordered geometry
+  buckets for repeated bounding-box queries. The non-owning snapshot supports configurable
+  X/Y/Z bins, bounded storage and concurrent read-only queries; rebuild it after
+  changing the geometry. Existing lookup APIs are unchanged.
 - `CSPropDiscMaterial::GetPolyDataModel()` returns the discrete-material
   surface as plain point and quad arrays, in structure coordinates or in the
   mesh coordinates of the data file, and as numpy arrays in Python.

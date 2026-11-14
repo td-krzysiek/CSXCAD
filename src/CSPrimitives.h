@@ -112,6 +112,14 @@ public:
 	//! Get the bounding box (for the given mesh type) for this special primitive. \sa GetBoundBoxCoordSystem
 	virtual bool GetBoundBox(double dBoundBox[6], bool PreserveOrientation=false) {UNUSED(PreserveOrientation);UNUSED(dBoundBox);return false;}
 
+	//! Conservative bounds in input coordinates, without drawing tolerance, after Update().
+	//! False means unknown; callers must retain the primitive. Does not change GetBoundBox().
+	virtual bool GetConservativeBoundBox(double bounds[6]) const
+	{
+		UNUSED(bounds);
+		return false;
+	}
+
 	virtual CoordinateSystem GetBoundBoxCoordSystem() const {return m_BoundBox_CoordSys;}
 
 	//! Get the dimension of this primitive

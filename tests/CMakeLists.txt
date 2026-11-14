@@ -9,6 +9,7 @@ set(TESTS
   test_csobject
   test_csrectgrid
   test_cstransform
+  test_spatial_index
 )
 
 foreach(test ${TESTS})
@@ -19,3 +20,11 @@ foreach(test ${TESTS})
   target_link_libraries(${test} CSXCAD)
   add_test(NAME ${test} COMMAND ${test})
 endforeach()
+
+find_package(Threads REQUIRED)
+target_link_libraries(test_spatial_index Threads::Threads)
+
+# Explicit benchmark target, excluded from ordinary unit-test runs.
+add_executable(bench_spatial_index bench_spatial_index.cpp)
+target_include_directories(bench_spatial_index PRIVATE ${CSXCAD_SOURCE_DIR}/src)
+target_link_libraries(bench_spatial_index CSXCAD)
