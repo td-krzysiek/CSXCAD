@@ -10,6 +10,7 @@ set(TESTS
   test_csrectgrid
   test_cstransform
   test_borrowed_primitives
+  test_polygon_bounds
 )
 
 foreach(test ${TESTS})

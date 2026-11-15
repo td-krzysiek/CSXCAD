@@ -16,6 +16,10 @@ there are unreleased changes. It becomes the next release entry.
 
 ### Added
 
+- Read-only conservative Cartesian bounds for updated `Polygon`/`LinPoly`
+  primitives, without changing the legacy bounding-box query contracts.
+  Transformed, rotational and non-Cartesian primitives report unknown bounds.
+
 - `CSPropDiscMaterial::GetPolyDataModel()` returns the discrete-material
   surface as plain point and quad arrays, in structure coordinates or in the
   mesh coordinates of the data file, and as numpy arrays in Python.
