@@ -26,6 +26,9 @@ there are unreleased changes. It becomes the next release entry.
 
 ### Changed
 
+- C++: primitive-list coordinate queries borrow a const vector reference instead
+  of copying it on every call. Rebuild C++ clients against this changed signature.
+
 - The Python bindings need Python 3.6 or newer (was 3.4), the oldest version
   CI still tests; CentOS 7 and Ubuntu 14.04 are no longer tested.
 - C++: `CSPropDiscMaterial::CreatePolyDataModel()` is removed, use
