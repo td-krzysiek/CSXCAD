@@ -17,6 +17,9 @@
 
 #pragma once
 
+// Feature detection for callers that also support older CSXCAD releases.
+#define CSXCAD_HAS_CONSERVATIVE_POLYGON_BOUNDS 1
+
 #include "CSPrimitives.h"
 
 //! 2D Polygon Primitive
@@ -60,6 +63,9 @@ public:
 	ParameterScalar* GetElevationPS() {return &Elevation;}
 
 	virtual bool GetBoundBox(double dBoundBox[6], bool PreserveOrientation=false);
+	//! Read cached Cartesian bounds after Update(); false means unknown.
+	//! Does not change the legacy GetBoundBox/IsInsideBox contracts.
+	bool GetConservativeBoundBox(double bounds[6]) const;
 	virtual bool IsInside(const double* Coord, double tol=0);
 
 	virtual bool Update(std::string *ErrStr=NULL);
