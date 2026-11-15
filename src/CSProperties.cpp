@@ -341,7 +341,7 @@ CSPrimitives* CSProperties::CheckCoordInPrimitive(const double *coord, int &prio
 			}
 		}
 	}
-	if ((markFoundAsUsed) && (found_CSPrim))
+	if ((markFoundAsUsed) && (found_CSPrim) && !found_CSPrim->GetPrimitiveUsed())   // a read only once set: the threads keep the cache line shared
 		found_CSPrim->SetPrimitiveUsed(true);
 	return found_CSPrim;
 }
