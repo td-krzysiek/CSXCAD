@@ -327,7 +327,7 @@ CSProperties** ContinuousStructure::GetPropertiesByCoordsPriority(const double* 
 	return NULL;
 }
 
-CSProperties* ContinuousStructure::GetPropertyByCoordPriority(const double* coord, std::vector<CSPrimitives*> primList, bool markFoundAsUsed, CSPrimitives** foundPrimitive)
+CSProperties* ContinuousStructure::GetPropertyByCoordPriority(const double* coord, const std::vector<CSPrimitives*>& primList, bool markFoundAsUsed, CSPrimitives** foundPrimitive)
 {
 	CSProperties* prop = NULL;
 	// search in all given primitives if coordinate given is inside

@@ -9,6 +9,7 @@ set(TESTS
   test_csobject
   test_csrectgrid
   test_cstransform
+  test_borrowed_primitives
 )
 
 foreach(test ${TESTS})
